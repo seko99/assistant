@@ -46,7 +46,6 @@
   },
   "wake_word": {
     "keywords": ["иннокентий", "вергилий"],
-    "wake_word": "иннокентий",
     "model_path": "vosk-model-small-ru-0.22",
     "sample_rate": 16000,
     "chunk_size": 1024,

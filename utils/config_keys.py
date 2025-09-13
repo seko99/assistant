@@ -12,7 +12,6 @@ class WakeWordKeys:
     SAMPLE_RATE = 'sample_rate'
     CHUNK_SIZE = 'chunk_size'
     KEYWORDS = 'keywords'
-    WAKE_WORD_TEXT = 'wake_word'
     MODEL_PATH = 'model_path'
     PRE_TRIGGER_DURATION = 'pre_trigger_duration'
 
