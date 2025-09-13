@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Speech Parrot API
+Speech Assistant API
 
 Объединяет функциональность трех компонентов:
 1. Vosk - детекция ключевых слов (wake word detection)
@@ -29,11 +29,11 @@ from core.text_to_speech import TextToSpeech
 from core.wake_word import WakeWordDetector
 from utils.config import load_config
 from utils.config_keys import ConfigKeys
-from utils.enums import ParrotState
+from utils.enums import AssistantState
 
 
-class SpeechParrot:
-    """Основной класс попугая, объединяющий все компоненты"""
+class SpeechAssistant:
+    """Основной класс ассистента, объединяющий все компоненты"""
 
     def __init__(self, config_file='config.json', debug=False):
         self.config = load_config(config_file)
@@ -49,7 +49,7 @@ class SpeechParrot:
         self.pause_detector = PauseDetector(self.config, debug=debug)
 
         # Состояние
-        self.state = ParrotState.LISTENING
+        self.state = AssistantState.LISTENING
         self.should_stop = threading.Event()
 
         # Аудио настройки
@@ -59,14 +59,14 @@ class SpeechParrot:
         # Буферы для записи
         self.recording_buffer = []
         self.recording_lock = threading.Lock()
-        self.max_recording_duration = self.config[ConfigKeys.PARROT][ConfigKeys.TTS.MAX_RECORDING_DURATION]
+        self.max_recording_duration = self.config[ConfigKeys.ASSISTANT][ConfigKeys.TTS.MAX_RECORDING_DURATION]
         self.recording_start_time = None
         self.recording_timer = None
         self.stop_reason = None  # для отслеживания причины остановки записи
 
     def initialize(self):
         """Инициализация всех компонентов"""
-        print("🚀 Инициализация компонентов попугая...")
+        print("🚀 Инициализация компонентов ассистента...")
 
         if not self.wake_detector.initialize():
             return False
@@ -98,7 +98,7 @@ class SpeechParrot:
         audio_chunk = indata[:, 0]  # первый канал
 
         with self.recording_lock:
-            if self.state == ParrotState.LISTENING:
+            if self.state == AssistantState.LISTENING:
                 # Ищем ключевое слово
                 wake_detected, result = self.wake_detector.detect_wake_word(audio_chunk)
 
@@ -109,7 +109,7 @@ class SpeechParrot:
                 elif self.debug and result:  # если есть любой текст
                     print(f"🔍 DEBUG: Vosk вернул текст: '{result}', wake_detected={wake_detected}")
 
-            elif self.state == ParrotState.RECORDING:
+            elif self.state == AssistantState.RECORDING:
                 # Записываем аудио для распознавания
                 self.recording_buffer.extend(audio_chunk)
 
@@ -131,7 +131,7 @@ class SpeechParrot:
 
     def _start_recording(self, pre_trigger_audio=None):
         """Начинает запись для распознавания"""
-        self.state = ParrotState.RECORDING
+        self.state = AssistantState.RECORDING
 
         # Сбрасываем детектор пауз
         self.pause_detector.reset()
@@ -160,14 +160,14 @@ class SpeechParrot:
 
     def _stop_recording_and_process(self, reason=None):
         """Останавливает запись и запускает обработку"""
-        if self.state != ParrotState.RECORDING:
+        if self.state != AssistantState.RECORDING:
             return
 
         # Если причина не передана, используем сохраненную
         if reason is None:
             reason = self.stop_reason or "unknown"
 
-        self.state = ParrotState.TRANSCRIBING
+        self.state = AssistantState.TRANSCRIBING
         duration = time.time() - self.recording_start_time if self.recording_start_time else 0
 
         # Отображаем причину остановки
@@ -205,7 +205,7 @@ class SpeechParrot:
                 return
 
             # Синтезируем и воспроизводим
-            self.state = ParrotState.SYNTHESIZING
+            self.state = AssistantState.SYNTHESIZING
             success = self.tts.synthesize_and_play(text)
 
             if success:
@@ -226,14 +226,14 @@ class SpeechParrot:
                 self.recording_timer.cancel()
                 self.recording_timer = None
 
-            self.state = ParrotState.LISTENING
+            self.state = AssistantState.LISTENING
             self.recording_buffer = []
             self.recording_start_time = None
         print("👂 Жду ключевое слово...")
 
     def run(self):
-        """Основной цикл работы попугая"""
-        print("🦜 Запуск речевого попугая")
+        """Основной цикл работы ассистента"""
+        print("🤖 Запуск речевого ассистента")
         print(f"   Ключевые слова: {self.wake_detector.keywords}")
         print(f"   Максимальная запись: {self.max_recording_duration}с")
         print("   Для остановки нажмите Ctrl+C")
@@ -254,13 +254,13 @@ class SpeechParrot:
                     time.sleep(0.1)
 
         except KeyboardInterrupt:
-            print("\n🛑 Остановка попугая...")
+            print("\n🛑 Остановка ассистента...")
             self.should_stop.set()
         except Exception as e:
             print(f"❌ Критическая ошибка: {e}")
             self.should_stop.set()
 
-        print("✅ Попугай остановлен")
+        print("✅ Ассистент остановлен")
 
 
 def main():
@@ -269,7 +269,7 @@ def main():
     debug = "--debug" in sys.argv or "-d" in sys.argv
 
     if "--help" in sys.argv or "-h" in sys.argv:
-        print("Speech Parrot - Речевой попугай")
+        print("Speech Assistant - Речевой ассистент")
         print()
         print("Использование:")
         print("  python main.py [--debug] [--help]")
@@ -280,16 +280,16 @@ def main():
         return 0
 
     try:
-        parrot = SpeechParrot(debug=debug)
+        assistant = SpeechAssistant(debug=debug)
 
         if debug:
             print("🔧 Режим отладки включен")
 
-        if not parrot.initialize():
-            print("❌ Не удалось инициализировать попугая")
+        if not assistant.initialize():
+            print("❌ Не удалось инициализировать ассистента")
             return 1
 
-        parrot.run()
+        assistant.run()
         return 0
 
     except Exception as e:

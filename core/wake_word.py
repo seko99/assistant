@@ -23,6 +23,7 @@ class WakeWordDetector:
         self.model = None
         self.recognizer = None
         self.keywords = self.wake_config[ConfigKeys.WakeWord.KEYWORDS]
+        self.wake_word = self.wake_config.get(ConfigKeys.WakeWord.WAKE_WORD_TEXT, "иннокентий")
         self.debug = debug  # Для отладочного вывода
 
         # Кольцевой буфер для pre-trigger аудио
@@ -46,9 +47,9 @@ class WakeWordDetector:
             self.model = vosk.Model(model_path)
 
             # Создаем распознаватель с ключевыми словами в JSON формате
-            keywords_json = json.dumps(self.keywords)
+            keywords_json = json.dumps([self.wake_word], ensure_ascii=False)
             sample_rate = self.wake_config[ConfigKeys.WakeWord.SAMPLE_RATE]
-            self.recognizer = vosk.KaldiRecognizer(self.model, sample_rate, '["иннокентий"]')
+            self.recognizer = vosk.KaldiRecognizer(self.model, sample_rate, keywords_json)
 
             print(f"✅ Vosk готов к работе с ключевыми словами: {self.keywords}")
             return True
@@ -96,8 +97,8 @@ class WakeWordDetector:
                     text = result['text'].lower()
                     if self.debug:
                         print(f"🔍 Vosk финальный результат: '{text}'")
-                    # Проверяем наличие любого из ключевых слов
-                    if 'иннокентий' in text:
+                    # Проверяем наличие ключевого слова
+                    if self.wake_word in text:
                         detection_time = time.time() - start_time
                         # Получаем pre-trigger аудио
                         pre_trigger_audio = self.get_pre_trigger_audio()

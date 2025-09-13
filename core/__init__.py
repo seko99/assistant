@@ -1,5 +1,5 @@
 """
-Core modules for Speech Parrot application.
+Core modules for Speech Assistant application.
 """
 
 from .pause_detection import PauseDetector

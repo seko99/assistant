@@ -15,11 +15,11 @@ class TextToSpeech:
 
     def __init__(self, config):
         self.config = config
-        self.parrot_config = config[ConfigKeys.PARROT]
+        self.assistant_config = config[ConfigKeys.ASSISTANT]
         self.model = None
-        self.sample_rate = self.parrot_config[ConfigKeys.TTS.TTS_SAMPLE_RATE]
-        self.speaker = self.parrot_config[ConfigKeys.TTS.TTS_SPEAKER]
-        self.use_accentizer = self.parrot_config.get(ConfigKeys.TTS.USE_ACCENTIZER, False)
+        self.sample_rate = self.assistant_config[ConfigKeys.TTS.TTS_SAMPLE_RATE]
+        self.speaker = self.assistant_config[ConfigKeys.TTS.TTS_SPEAKER]
+        self.use_accentizer = self.assistant_config.get(ConfigKeys.TTS.USE_ACCENTIZER, False)
         self.accentizer = None
 
     def initialize(self):

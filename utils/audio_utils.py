@@ -1,5 +1,5 @@
 """
-Audio utilities and helper functions for the Speech Parrot application.
+Audio utilities and helper functions for the Speech Assistant application.
 """
 
 import numpy as np

@@ -1,5 +1,5 @@
 """
-Configuration keys constants for the Speech Parrot application.
+Configuration keys constants for the Speech Assistant application.
 
 This module defines constants for configuration keys to improve code maintainability
 and prevent typos in configuration key access.
@@ -12,6 +12,7 @@ class WakeWordKeys:
     SAMPLE_RATE = 'sample_rate'
     CHUNK_SIZE = 'chunk_size'
     KEYWORDS = 'keywords'
+    WAKE_WORD_TEXT = 'wake_word'
     MODEL_PATH = 'model_path'
     PRE_TRIGGER_DURATION = 'pre_trigger_duration'
 
@@ -19,7 +20,7 @@ class WakeWordKeys:
 # Text-to-speech configuration keys
 class TTSKeys:
     """Ключи конфигурации для синтеза речи"""
-    PARROT = 'parrot'
+    ASSISTANT = 'assistant'
     TTS_SAMPLE_RATE = 'tts_sample_rate'
     TTS_SPEAKER = 'tts_speaker'
     USE_ACCENTIZER = 'use_accentizer'
@@ -53,7 +54,7 @@ class ConfigKeys:
     
     # Main sections
     WAKE_WORD = WakeWordKeys.WAKE_WORD
-    PARROT = TTSKeys.PARROT
+    ASSISTANT = TTSKeys.ASSISTANT
     TRANSCRIPTION = TranscriptionKeys.TRANSCRIPTION
     VOICE_DETECTION = VoiceDetectionKeys.VOICE_DETECTION
     

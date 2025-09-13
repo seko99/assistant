@@ -1,5 +1,5 @@
 """
-Configuration utilities for the Speech Parrot application.
+Configuration utilities for the Speech Assistant application.
 """
 
 import json

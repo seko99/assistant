@@ -45,13 +45,14 @@
     "cleanup_temp_files": true
   },
   "wake_word": {
-    "keywords": ["иннокентий"],
+    "keywords": ["иннокентий", "вергилий"],
+    "wake_word": "иннокентий",
     "model_path": "vosk-model-small-ru-0.22",
     "sample_rate": 16000,
     "chunk_size": 1024,
     "pre_trigger_duration": 3.0
   },
-  "parrot": {
+  "assistant": {
     "max_recording_duration": 20,
     "playback_device": null,
     "tts_speaker": "aidar",
