@@ -5,6 +5,7 @@ Pause detection module for speech recording.
 import numpy as np
 
 from utils.audio_utils import calculate_energy
+from utils.config_keys import ConfigKeys
 
 
 class PauseDetector:
@@ -12,18 +13,18 @@ class PauseDetector:
 
     def __init__(self, config, debug=False):
         self.config = config
-        self.voice_config = config['voice_detection']
+        self.voice_config = config[ConfigKeys.VOICE_DETECTION]
         self.debug = debug
 
         # Параметры детекции
-        self.pause_threshold = self.voice_config.get('pause_threshold', 3.0)  # секунды
-        self.voice_energy_threshold = self.voice_config.get('voice_energy_threshold', 0.01)
-        self.min_recording_duration = self.voice_config.get('min_recording_duration', 0.5)  # секунды
-        self.pause_detection_enabled = self.voice_config.get('pause_detection_enabled', True)
+        self.pause_threshold = self.voice_config.get(ConfigKeys.VoiceDetection.PAUSE_THRESHOLD, 3.0)  # секунды
+        self.voice_energy_threshold = self.voice_config.get(ConfigKeys.VoiceDetection.VOICE_ENERGY_THRESHOLD, 0.01)
+        self.min_recording_duration = self.voice_config.get(ConfigKeys.VoiceDetection.MIN_RECORDING_DURATION, 0.5)  # секунды
+        self.pause_detection_enabled = self.voice_config.get(ConfigKeys.VoiceDetection.PAUSE_DETECTION_ENABLED, True)
 
         # Состояние
-        self.sample_rate = config['wake_word']['sample_rate']  # используем sample_rate от wake_word
-        self.chunk_size = config['wake_word']['chunk_size']
+        self.sample_rate = config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.SAMPLE_RATE]  # используем sample_rate от wake_word
+        self.chunk_size = config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.CHUNK_SIZE]
         self.samples_per_second = self.sample_rate / self.chunk_size
 
         # Счетчики

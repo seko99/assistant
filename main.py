@@ -28,6 +28,7 @@ from core.speech_recognition import SpeechRecognizer
 from core.text_to_speech import TextToSpeech
 from core.wake_word import WakeWordDetector
 from utils.config import load_config
+from utils.config_keys import ConfigKeys
 from utils.enums import ParrotState
 
 
@@ -52,13 +53,13 @@ class SpeechParrot:
         self.should_stop = threading.Event()
 
         # Аудио настройки
-        self.sample_rate = self.config['wake_word']['sample_rate']
-        self.chunk_size = self.config['wake_word']['chunk_size']
+        self.sample_rate = self.config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.SAMPLE_RATE]
+        self.chunk_size = self.config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.CHUNK_SIZE]
 
         # Буферы для записи
         self.recording_buffer = []
         self.recording_lock = threading.Lock()
-        self.max_recording_duration = self.config['parrot']['max_recording_duration']
+        self.max_recording_duration = self.config[ConfigKeys.PARROT][ConfigKeys.TTS.MAX_RECORDING_DURATION]
         self.recording_start_time = None
         self.recording_timer = None
         self.stop_reason = None  # для отслеживания причины остановки записи

@@ -9,21 +9,23 @@ import soundfile as sf
 import torch
 from faster_whisper import WhisperModel
 
+from utils.config_keys import ConfigKeys
+
 
 class SpeechRecognizer:
     """Распознаватель речи на основе FasterWhisper (упрощенная версия voice_recorder.py)"""
 
     def __init__(self, config):
         self.config = config
-        self.transcription_config = config['transcription']
+        self.transcription_config = config[ConfigKeys.TRANSCRIPTION]
         self.whisper_model = None
 
     def initialize(self):
         """Инициализация модели FasterWhisper"""
         try:
-            model_size = self.transcription_config.get('whisper_model', 'base')
-            device = self.transcription_config.get('device', 'auto')
-            compute_type = self.transcription_config.get('compute_type', 'auto')
+            model_size = self.transcription_config.get(ConfigKeys.Transcription.WHISPER_MODEL, 'base')
+            device = self.transcription_config.get(ConfigKeys.Transcription.DEVICE, 'auto')
+            compute_type = self.transcription_config.get(ConfigKeys.Transcription.COMPUTE_TYPE, 'auto')
 
             # Автоопределение устройства если нужно
             if device == 'auto' or compute_type == 'auto':
@@ -66,8 +68,8 @@ class SpeechRecognizer:
             sf.write(temp_filename, audio_data, sample_rate)
 
             # Транскрибируем
-            language = self.transcription_config.get('language', 'ru')
-            beam_size = self.transcription_config.get('beam_size', 5)
+            language = self.transcription_config.get(ConfigKeys.Transcription.LANGUAGE, 'ru')
+            beam_size = self.transcription_config.get(ConfigKeys.Transcription.BEAM_SIZE, 5)
 
             segments, info = self.whisper_model.transcribe(
                 temp_filename,

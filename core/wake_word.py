@@ -11,6 +11,7 @@ import numpy as np
 import vosk
 
 from utils.audio_utils import convert_float32_to_int16
+from utils.config_keys import ConfigKeys
 
 
 class WakeWordDetector:
@@ -18,22 +19,22 @@ class WakeWordDetector:
 
     def __init__(self, config, debug=False):
         self.config = config
-        self.wake_config = config['wake_word']
+        self.wake_config = config[ConfigKeys.WAKE_WORD]
         self.model = None
         self.recognizer = None
-        self.keywords = self.wake_config['keywords']
+        self.keywords = self.wake_config[ConfigKeys.WakeWord.KEYWORDS]
         self.debug = debug  # Для отладочного вывода
 
         # Кольцевой буфер для pre-trigger аудио
-        self.pre_trigger_duration = self.wake_config.get('pre_trigger_duration', 3.0)
-        self.sample_rate = self.wake_config['sample_rate']
-        self.chunk_size = self.wake_config['chunk_size']
+        self.pre_trigger_duration = self.wake_config.get(ConfigKeys.WakeWord.PRE_TRIGGER_DURATION, 3.0)
+        self.sample_rate = self.wake_config[ConfigKeys.WakeWord.SAMPLE_RATE]
+        self.chunk_size = self.wake_config[ConfigKeys.WakeWord.CHUNK_SIZE]
         buffer_size = int(self.sample_rate * self.pre_trigger_duration)
         self.audio_buffer = deque(maxlen=buffer_size)
 
     def initialize(self):
         """Инициализация модели Vosk"""
-        model_path = self.wake_config['model_path']
+        model_path = self.wake_config[ConfigKeys.WakeWord.MODEL_PATH]
 
         if not os.path.exists(model_path):
             print(f"❌ Модель Vosk не найдена: {model_path}")
@@ -46,7 +47,7 @@ class WakeWordDetector:
 
             # Создаем распознаватель с ключевыми словами в JSON формате
             keywords_json = json.dumps(self.keywords)
-            sample_rate = self.wake_config['sample_rate']
+            sample_rate = self.wake_config[ConfigKeys.WakeWord.SAMPLE_RATE]
             self.recognizer = vosk.KaldiRecognizer(self.model, sample_rate, '["иннокентий"]')
 
             print(f"✅ Vosk готов к работе с ключевыми словами: {self.keywords}")

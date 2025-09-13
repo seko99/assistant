@@ -7,17 +7,19 @@ import time
 import sounddevice as sd
 import torch
 
+from utils.config_keys import ConfigKeys
+
 
 class TextToSpeech:
     """Синтез речи на основе Silero TTS"""
 
     def __init__(self, config):
         self.config = config
-        self.parrot_config = config['parrot']
+        self.parrot_config = config[ConfigKeys.PARROT]
         self.model = None
-        self.sample_rate = self.parrot_config['tts_sample_rate']
-        self.speaker = self.parrot_config['tts_speaker']
-        self.use_accentizer = self.parrot_config.get('use_accentizer', False)
+        self.sample_rate = self.parrot_config[ConfigKeys.TTS.TTS_SAMPLE_RATE]
+        self.speaker = self.parrot_config[ConfigKeys.TTS.TTS_SPEAKER]
+        self.use_accentizer = self.parrot_config.get(ConfigKeys.TTS.USE_ACCENTIZER, False)
         self.accentizer = None
 
     def initialize(self):
