@@ -1,0 +1,61 @@
+{
+  "audio": {
+    "sample_rate": 44100,
+    "channels": 1,
+    "chunk_size": 1024,
+    "device": null,
+    "fallback_device": 7,
+    "dtype": "float32"
+  },
+  "voice_detection": {
+    "threshold_factor": 30.0,
+    "pause_threshold": 2.0,
+    "calibration_samples": 30,
+    "noise_buffer_size": 50,
+    "vad_mode": 3,
+    "max_recording_time_seconds": 30,
+    "pause_detection_enabled": true,
+    "voice_energy_threshold": 0.01,
+    "min_recording_duration": 0.5
+  },
+  "transcription": {
+    "whisper_model": "medium",
+    "language": "ru",
+    "device": "auto",
+    "compute_type": "auto",
+    "beam_size": 5,
+    "auto_delete_audio": true,
+    "save_audio_files": false
+  },
+  "output": {
+    "file_prefix": "recording",
+    "transcription_prefix": "transcription",
+    "datetime_format": "%Y%m%d%H%M%S",
+    "encoding": "utf-8"
+  },
+  "interface": {
+    "use_emoji": true,
+    "verbose": true,
+    "show_energy_levels": false,
+    "calibration_message": true
+  },
+  "performance": {
+    "transcription_timeout": 1.0,
+    "max_recording_length": 300,
+    "cleanup_temp_files": true
+  },
+  "wake_word": {
+    "keywords": ["иннокентий"],
+    "model_path": "vosk-model-small-ru-0.22",
+    "sample_rate": 16000,
+    "chunk_size": 1024,
+    "pre_trigger_duration": 3.0
+  },
+  "parrot": {
+    "max_recording_duration": 20,
+    "playback_device": null,
+    "tts_speaker": "kseniya",
+    "tts_sample_rate": 48000,
+    "use_accentizer": true
+  }
+}

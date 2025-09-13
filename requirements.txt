@@ -1,0 +1,11 @@
+torchaudio
+sounddevice==0.4.6
+soundfile==0.12.1
+faster-whisper>=0.10.0
+webrtcvad>=2.0.10
+torch>=1.9.0
+numpy>=1.21.0
+scipy>=1.7.0
+omegaconf
+vosk>=0.3.45
+ruaccent

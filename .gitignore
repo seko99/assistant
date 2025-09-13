@@ -1,0 +1,8 @@
+*.iml
+*.wav
+transcription*.txt
+.venv
+venv
+.claude
+.idea
+vosk-model-small-ru-0.22
