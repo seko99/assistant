@@ -10,5 +10,6 @@ class AssistantState(Enum):
     LISTENING = "listening"      # Ожидание ключевой фразы
     RECORDING = "recording"      # Запись для распознавания
     TRANSCRIBING = "transcribing" # Распознавание речи
+    THINKING = "thinking"        # Обработка запроса в LLM
     SYNTHESIZING = "synthesizing" # Синтез речи
     PLAYING = "playing"          # Воспроизведение

@@ -23,6 +23,7 @@ import time
 import numpy as np
 import sounddevice as sd
 
+from core.llm_engine import LLMEngine
 from core.pause_detection import PauseDetector
 from core.speech_recognition import SpeechRecognizer
 from core.text_to_speech import TextToSpeech
@@ -47,6 +48,7 @@ class SpeechAssistant:
         self.speech_recognizer = SpeechRecognizer(self.config)
         self.tts = TextToSpeech(self.config)
         self.pause_detector = PauseDetector(self.config, debug=debug)
+        self.llm_engine = LLMEngine(self.config)
 
         # Состояние
         self.state = AssistantState.LISTENING
@@ -75,6 +77,9 @@ class SpeechAssistant:
             return False
 
         if not self.tts.initialize():
+            return False
+
+        if not self.llm_engine.initialize():
             return False
 
         print("✅ Все компоненты инициализированы")
@@ -188,7 +193,7 @@ class SpeechAssistant:
         processing_thread.start()
 
     def _process_recording(self, audio_data):
-        """Обрабатывает записанное аудио (распознавание + синтез)"""
+        """Обрабатывает записанное аудио (распознавание + LLM + синтез)"""
         try:
             if len(audio_data) == 0:
                 print("⚠️ Пустая запись")
@@ -204,9 +209,25 @@ class SpeechAssistant:
                 self._reset_to_listening()
                 return
 
-            # Синтезируем и воспроизводим
+            print(f"📝 Распознано: {text}")
+
+            # Обрабатываем через LLM
+            response_text = text  # По умолчанию используем оригинальный текст
+
+            if self.llm_engine.is_enabled():
+                self.state = AssistantState.THINKING
+                llm_response = self.llm_engine.process_user_input(text)
+
+                if llm_response:
+                    response_text = llm_response
+                else:
+                    print("⚠️ LLM недоступен, использую распознанный текст")
+            else:
+                print("ℹ️ LLM отключен, повторяю распознанный текст")
+
+            # Синтезируем и воспроизводим ответ
             self.state = AssistantState.SYNTHESIZING
-            success = self.tts.synthesize_and_play(text)
+            success = self.tts.synthesize_and_play(response_text)
 
             if success:
                 print("✅ Воспроизведение завершено")
@@ -236,6 +257,12 @@ class SpeechAssistant:
         print("🤖 Запуск речевого ассистента")
         print(f"   Ключевые слова: {self.wake_detector.keywords}")
         print(f"   Максимальная запись: {self.max_recording_duration}с")
+
+        if self.llm_engine.is_enabled():
+            print(f"   LLM: включен ({self.llm_engine.base_url})")
+        else:
+            print("   LLM: отключен (будет повторять распознанный текст)")
+
         print("   Для остановки нажмите Ctrl+C")
         print()
 

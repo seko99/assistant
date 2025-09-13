@@ -57,5 +57,11 @@
     "tts_speaker": "aidar",
     "tts_sample_rate": 48000,
     "use_accentizer": true
+  },
+  "llm": {
+    "enabled": true,
+    "base_url": "http://192.168.2.88:1234/v1",
+    "model": "local-model",
+    "temperature": 0.7
   }
 }

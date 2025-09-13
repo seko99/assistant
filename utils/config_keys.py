@@ -47,24 +47,38 @@ class VoiceDetectionKeys:
     PAUSE_DETECTION_ENABLED = 'pause_detection_enabled'
 
 
+# LLM configuration keys
+class LLMKeys:
+    """Ключи конфигурации для языковой модели"""
+    LLM = 'llm'
+    ENABLED = 'enabled'
+    BASE_URL = 'base_url'
+    MODEL = 'model'
+    TEMPERATURE = 'temperature'
+
+
 # Aggregate class for easy access to all keys
 class ConfigKeys:
     """Главный класс со всеми ключами конфигурации"""
-    
+
     # Main sections
     WAKE_WORD = WakeWordKeys.WAKE_WORD
     ASSISTANT = TTSKeys.ASSISTANT
     TRANSCRIPTION = TranscriptionKeys.TRANSCRIPTION
     VOICE_DETECTION = VoiceDetectionKeys.VOICE_DETECTION
-    
+    LLM = LLMKeys.LLM
+
     # Wake word keys
     WakeWord = WakeWordKeys
-    
+
     # TTS keys
     TTS = TTSKeys
-    
+
     # Transcription keys
     Transcription = TranscriptionKeys
-    
+
     # Voice detection keys
     VoiceDetection = VoiceDetectionKeys
+
+    # LLM keys
+    LLM = LLMKeys
