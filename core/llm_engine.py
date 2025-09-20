@@ -8,6 +8,77 @@ from typing import Optional, Dict, List
 
 from openai import OpenAI
 from utils.config_keys import ConfigKeys
+from utils.text_filters import filter_thinking_blocks
+
+
+class LLMSession:
+    """Независимая сессия LLM с собственной историей диалога"""
+
+    def __init__(self, client, model: str, system_prompt: str, temperature: float = 0.7, filter_thinking: bool = True):
+        self.client = client
+        self.model = model
+        self.temperature = temperature
+        self.filter_thinking = filter_thinking
+        self.conversation_history = [
+            {"role": "system", "content": system_prompt}
+        ]
+
+    def send_message(self, message: str) -> Optional[str]:
+        """Отправляет сообщение в рамках этой сессии"""
+        if not message.strip():
+            return None
+
+        try:
+            # Добавляем сообщение пользователя в историю
+            self.conversation_history.append({
+                "role": "user",
+                "content": message
+            })
+
+            # Отправляем весь диалог в модель
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=self.conversation_history,
+                temperature=self.temperature
+            )
+
+            # Получаем ответ
+            answer = response.choices[0].message.content
+
+            # Фильтруем thinking-блоки если включена фильтрация
+            if self.filter_thinking and answer:
+                answer = filter_thinking_blocks(answer)
+
+            # Добавляем ответ ассистента в историю
+            self.conversation_history.append({
+                "role": "assistant",
+                "content": answer
+            })
+
+            return answer
+
+        except Exception as e:
+            print(f"❌ Ошибка LLM сессии: {e}")
+            return None
+
+    def get_conversation_length(self) -> int:
+        """Возвращает количество сообщений в диалоге (без системного промпта)"""
+        return len(self.conversation_history) - 1
+
+    def get_full_conversation(self) -> List[Dict[str, str]]:
+        """Возвращает полную историю диалога"""
+        return self.conversation_history.copy()
+
+    def reset_conversation(self, new_system_prompt: Optional[str] = None):
+        """Сбрасывает историю диалога, опционально с новым системным промптом"""
+        if new_system_prompt:
+            self.conversation_history = [
+                {"role": "system", "content": new_system_prompt}
+            ]
+        else:
+            # Сохраняем только системный промпт
+            system_message = self.conversation_history[0]
+            self.conversation_history = [system_message]
 
 
 class LLMEngine:
@@ -22,6 +93,7 @@ class LLMEngine:
         self.model = self.llm_config.get(ConfigKeys.LLM.MODEL, "local-model")
         self.temperature = self.llm_config.get(ConfigKeys.LLM.TEMPERATURE, 0.7)
         self.enabled = self.llm_config.get(ConfigKeys.LLM.ENABLED, True)
+        self.filter_thinking = self.llm_config.get("filter_thinking_blocks", True)
 
         # OpenAI клиент
         self.client = None
@@ -134,6 +206,10 @@ class LLMEngine:
             # Получаем ответ
             answer = response.choices[0].message.content
 
+            # Фильтруем thinking-блоки если включена фильтрация
+            if self.filter_thinking and answer:
+                answer = filter_thinking_blocks(answer)
+
             # Добавляем ответ ассистента в историю
             self.conversation_history.append({
                 "role": "assistant",
@@ -171,3 +247,29 @@ class LLMEngine:
     def is_enabled(self) -> bool:
         """Проверяет, включен ли LLM"""
         return self.enabled and self.client is not None
+
+    def create_session(self, system_prompt: str, temperature: Optional[float] = None, filter_thinking: Optional[bool] = None) -> Optional[LLMSession]:
+        """
+        Создает новую независимую LLM сессию
+
+        Args:
+            system_prompt: Системный промпт для сессии
+            temperature: Температура для сессии (опционально)
+            filter_thinking: Включить фильтрацию thinking-блоков (опционально)
+
+        Returns:
+            Новая LLMSession или None если LLM недоступен
+        """
+        if not self.enabled or not self.client:
+            return None
+
+        session_temperature = temperature if temperature is not None else self.temperature
+        session_filter_thinking = filter_thinking if filter_thinking is not None else self.filter_thinking
+
+        return LLMSession(
+            client=self.client,
+            model=self.model,
+            system_prompt=system_prompt,
+            temperature=session_temperature,
+            filter_thinking=session_filter_thinking
+        )
