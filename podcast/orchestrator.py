@@ -257,24 +257,32 @@ class PodcastOrchestrator:
             print("❌ Не найдены необходимые участники")
             return False
 
-        # Модератор делает введение в раунд с направляющими вопросами
+        # Модератор делает введение в раунд с обращением к первому спикеру
         round_intro = self._moderator_round_intro()
         if not round_intro:
             print("⚠️ Модератор не смог сделать введение в раунд")
             return False
 
-        # Каждый спикер высказывается по теме раунда
-        for speaker in speakers:
+        # Каждый спикер высказывается по теме раунда с переходами
+        for i, speaker in enumerate(speakers):
             speaker_response = self._speaker_response(speaker)
 
             if not speaker_response:
                 print(f"⚠️ Спикер {speaker.name} не ответил")
                 continue
 
+            # Добавляем переход к следующему спикеру (кроме последнего)
+            if i < len(speakers) - 1:
+                next_speaker = speakers[i + 1]
+                transition = self._moderator_transition(speaker, next_speaker)
+
+                if not transition:
+                    print(f"⚠️ Модератор не смог сделать переход от {speaker.name} к {next_speaker.name}")
+
         return True
 
     def _moderator_round_intro(self) -> Optional[str]:
-        """Введение модератора в раунд с направляющими вопросами"""
+        """Введение модератора в раунд с обращением к первому спикеру"""
         moderator = self.participant_manager.get_moderator()
         if not moderator:
             return None
@@ -282,23 +290,22 @@ class PodcastOrchestrator:
         round_num = self.current_session.current_round
         speakers = self.participant_manager.get_speakers()
 
-        # Формируем информацию об участниках для направляющих вопросов
-        speakers_info = []
-        for speaker in speakers:
-            speaker_info = f"{speaker.name} ({', '.join(speaker.expertise_areas[:2])})"
-            speakers_info.append(speaker_info)
+        if not speakers:
+            return None
 
-        speakers_list = ", ".join(speakers_info)
+        # Первый спикер раунда
+        first_speaker = speakers[0]
+        first_speaker_expertise = ", ".join(first_speaker.expertise_areas[:2]) if first_speaker.expertise_areas else "общие вопросы"
 
         intro_prompt = f"""Это раунд {round_num} из {self.current_session.max_rounds} по теме "{self.current_session.topic}".
 
-Сделай введение в раунд, которое включает:
-1. Краткое обозначение фокуса этого раунда
-2. Общие направляющие вопросы или темы для обсуждения всем участникам
+Кратко обозначь фокус этого раунда и сразу обратись к первому участнику.
 
-Участники: {speakers_list}
+Обращение должно быть в формате: "[Имя], [вопрос или тема для обсуждения исходя из экспертизы участника]"
 
-Сформулируй это как единое связное вступление, после которого участники смогут высказаться по порядку."""
+Первый участник: {first_speaker.name} (экспертиза: {first_speaker_expertise})
+
+Сделай это кратко и естественно, как в живом разговоре."""
 
         response = self._get_participant_response(moderator.participant_id, intro_prompt)
 
@@ -345,6 +352,38 @@ class PodcastOrchestrator:
 
         return response
 
+    def _moderator_transition(self, current_speaker: ParticipantProfile, next_speaker: ParticipantProfile) -> Optional[str]:
+        """Переход модератора от текущего спикера к следующему"""
+        moderator = self.participant_manager.get_moderator()
+        if not moderator:
+            return None
+
+        # Получаем экспертизу следующего спикера
+        next_speaker_expertise = ", ".join(next_speaker.expertise_areas[:2]) if next_speaker.expertise_areas else "другой точки зрения"
+
+        # Формируем персонализированный переход
+        transition_prompt = f"""Сделай короткий переход от ответа {current_speaker.name} к следующему участнику.
+
+Используй формат: "{current_speaker.name}, [краткий комментарий/благодарность]! А что с точки зрения {next_speaker_expertise}, {next_speaker.name}?"
+
+Или вариацию:
+- "Спасибо, {current_speaker.name}! {next_speaker.name}, а как это выглядит с позиции {next_speaker_expertise}?"
+- "Интересно, {current_speaker.name}! {next_speaker.name}, что скажешь про {next_speaker_expertise} в этом контексте?"
+
+Сделай это кратко и естественно, как в живом разговоре."""
+
+        response = self._get_participant_response(moderator.participant_id, transition_prompt)
+
+        if response:
+            self.current_session.add_transcript_entry(
+                moderator.participant_id,
+                moderator.name,
+                moderator.role,
+                response
+            )
+            self._synthesize_speech(moderator, response, f"transition_{self.current_session.current_round}")
+
+        return response
 
     def _closing_segment(self):
         """Завершение подкаста модератором"""
