@@ -11,7 +11,7 @@ import sounddevice as sd
 import torch
 import torchaudio
 
-from utils.config_keys import ConfigKeys
+from utils.config_keys import ConfigKeys, ConfigSections
 
 
 class TextToSpeech:
@@ -19,7 +19,7 @@ class TextToSpeech:
 
     def __init__(self, config):
         self.config = config
-        self.assistant_config = config[ConfigKeys.ASSISTANT]
+        self.assistant_config = config[ConfigSections.ASSISTANT]
         self.model = None
         self.sample_rate = self.assistant_config[ConfigKeys.TTS.TTS_SAMPLE_RATE]
         self.speaker = self.assistant_config[ConfigKeys.TTS.TTS_SPEAKER]

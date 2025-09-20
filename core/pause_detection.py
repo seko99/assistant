@@ -5,7 +5,7 @@ Pause detection module for speech recording.
 import numpy as np
 
 from utils.audio_utils import calculate_energy
-from utils.config_keys import ConfigKeys
+from utils.config_keys import ConfigKeys, ConfigSections
 
 
 class PauseDetector:
@@ -13,7 +13,7 @@ class PauseDetector:
 
     def __init__(self, config, debug=False):
         self.config = config
-        self.voice_config = config[ConfigKeys.VOICE_DETECTION]
+        self.voice_config = config[ConfigSections.VOICE_DETECTION]
         self.debug = debug
 
         # Параметры детекции
@@ -23,8 +23,8 @@ class PauseDetector:
         self.pause_detection_enabled = self.voice_config.get(ConfigKeys.VoiceDetection.PAUSE_DETECTION_ENABLED, True)
 
         # Состояние
-        self.sample_rate = config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.SAMPLE_RATE]  # используем sample_rate от wake_word
-        self.chunk_size = config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.CHUNK_SIZE]
+        self.sample_rate = config[ConfigSections.WAKE_WORD][ConfigKeys.WakeWord.SAMPLE_RATE]  # используем sample_rate от wake_word
+        self.chunk_size = config[ConfigSections.WAKE_WORD][ConfigKeys.WakeWord.CHUNK_SIZE]
         self.samples_per_second = self.sample_rate / self.chunk_size
 
         # Счетчики

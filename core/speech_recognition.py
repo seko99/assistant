@@ -3,13 +3,14 @@ Speech recognition module using FasterWhisper.
 """
 
 import os
+import tempfile
 import time
 
 import soundfile as sf
 import torch
 from faster_whisper import WhisperModel
 
-from utils.config_keys import ConfigKeys
+from utils.config_keys import ConfigKeys, ConfigSections
 
 
 class SpeechRecognizer:
@@ -17,7 +18,7 @@ class SpeechRecognizer:
 
     def __init__(self, config):
         self.config = config
-        self.transcription_config = config[ConfigKeys.TRANSCRIPTION]
+        self.transcription_config = config[ConfigSections.TRANSCRIPTION]
         self.whisper_model = None
 
     def initialize(self):
@@ -62,10 +63,24 @@ class SpeechRecognizer:
             return ""
 
         start_time = time.time()
+        temp_file = None
+
         try:
-            # Сохраняем временный файл для FasterWhisper
-            temp_filename = f"temp_recording_{int(time.time())}.wav"
-            sf.write(temp_filename, audio_data, sample_rate)
+            # Получаем настройки из конфига
+            save_audio_files = self.transcription_config.get('save_audio_files', False)
+            auto_delete_audio = self.transcription_config.get('auto_delete_audio', True)
+
+            # Создаем временный файл
+            if save_audio_files:
+                # Если нужно сохранять файлы, создаем в рабочей директории
+                temp_filename = f"temp_recording_{int(time.time())}.wav"
+                sf.write(temp_filename, audio_data, sample_rate)
+            else:
+                # Используем системный временный каталог
+                temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                temp_filename = temp_file.name
+                temp_file.close()  # Закрываем файл, чтобы soundfile мог записать в него
+                sf.write(temp_filename, audio_data, sample_rate)
 
             # Транскрибируем
             language = self.transcription_config.get(ConfigKeys.Transcription.LANGUAGE, 'ru')
@@ -86,11 +101,12 @@ class SpeechRecognizer:
             text = " ".join(text_segments).strip()
             transcription_time = time.time() - start_time
 
-            # Удаляем временный файл
-            try:
-                os.remove(temp_filename)
-            except:
-                pass
+            # Удаляем временный файл согласно настройкам
+            if auto_delete_audio and not save_audio_files:
+                try:
+                    os.remove(temp_filename)
+                except Exception as cleanup_error:
+                    print(f"⚠️ Не удалось удалить временный файл {temp_filename}: {cleanup_error}")
 
             if text.strip():
                 print(f"📄 Распознано: {text} (время: {transcription_time:.3f}s)")
@@ -99,4 +115,10 @@ class SpeechRecognizer:
 
         except Exception as e:
             print(f"❌ Ошибка транскрипции: {e}")
+            # Пытаемся очистить временный файл в случае ошибки
+            if temp_file and os.path.exists(temp_file.name):
+                try:
+                    os.remove(temp_file.name)
+                except:
+                    pass
             return ""

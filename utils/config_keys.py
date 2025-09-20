@@ -57,16 +57,19 @@ class LLMKeys:
     TEMPERATURE = 'temperature'
 
 
-# Aggregate class for easy access to all keys
-class ConfigKeys:
-    """Главный класс со всеми ключами конфигурации"""
-
-    # Main sections
+# Configuration sections (string identifiers)
+class ConfigSections:
+    """Идентификаторы секций конфигурации"""
     WAKE_WORD = WakeWordKeys.WAKE_WORD
     ASSISTANT = TTSKeys.ASSISTANT
     TRANSCRIPTION = TranscriptionKeys.TRANSCRIPTION
     VOICE_DETECTION = VoiceDetectionKeys.VOICE_DETECTION
     LLM = LLMKeys.LLM
+
+
+# Aggregate class for easy access to all keys
+class ConfigKeys:
+    """Главный класс со всеми ключами конфигурации"""
 
     # Wake word keys
     WakeWord = WakeWordKeys

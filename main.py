@@ -29,7 +29,7 @@ from core.speech_recognition import SpeechRecognizer
 from core.text_to_speech import TextToSpeech
 from core.wake_word import WakeWordDetector
 from utils.config import load_config
-from utils.config_keys import ConfigKeys
+from utils.config_keys import ConfigKeys, ConfigSections
 from utils.enums import AssistantState
 
 
@@ -55,13 +55,13 @@ class SpeechAssistant:
         self.should_stop = threading.Event()
 
         # Аудио настройки
-        self.sample_rate = self.config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.SAMPLE_RATE]
-        self.chunk_size = self.config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.CHUNK_SIZE]
+        self.sample_rate = self.config[ConfigSections.WAKE_WORD][ConfigKeys.WakeWord.SAMPLE_RATE]
+        self.chunk_size = self.config[ConfigSections.WAKE_WORD][ConfigKeys.WakeWord.CHUNK_SIZE]
 
         # Буферы для записи
         self.recording_buffer = []
         self.recording_lock = threading.Lock()
-        self.max_recording_duration = self.config[ConfigKeys.ASSISTANT][ConfigKeys.TTS.MAX_RECORDING_DURATION]
+        self.max_recording_duration = self.config[ConfigSections.ASSISTANT][ConfigKeys.TTS.MAX_RECORDING_DURATION]
         self.recording_start_time = None
         self.recording_timer = None
         self.stop_reason = None  # для отслеживания причины остановки записи

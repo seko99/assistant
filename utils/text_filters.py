@@ -42,7 +42,8 @@ def filter_thinking_blocks(text: str, remove_empty_lines: bool = True) -> str:
 
     # Pattern to match thinking blocks, including multiline content
     # Uses DOTALL flag to match newlines within the blocks
-    pattern = r'<think>.*?</think>'
+    # Supports both <think> and <thinking> tags for compatibility
+    pattern = r'<think(?:ing)?>.*?</think(?:ing)?>'
 
     # Remove thinking blocks
     cleaned_text = re.sub(pattern, '', text, flags=re.DOTALL | re.IGNORECASE)
@@ -164,7 +165,8 @@ def has_thinking_blocks(text: str) -> bool:
     if not text:
         return False
 
-    pattern = r'<think>.*?</think>'
+    # Supports both <think> and <thinking> tags for compatibility
+    pattern = r'<think(?:ing)?>.*?</think(?:ing)?>'
     return bool(re.search(pattern, text, flags=re.DOTALL | re.IGNORECASE))
 
 
@@ -183,7 +185,8 @@ def extract_thinking_content(text: str) -> list[str]:
     if not text:
         return []
 
-    pattern = r'<think>(.*?)</think>'
+    # Supports both <think> and <thinking> tags for compatibility
+    pattern = r'<think(?:ing)?>(.*?)</think(?:ing)?>'
     matches = re.findall(pattern, text, flags=re.DOTALL | re.IGNORECASE)
 
     # Clean up the extracted content

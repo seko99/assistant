@@ -11,7 +11,7 @@ import numpy as np
 import vosk
 
 from utils.audio_utils import convert_float32_to_int16
-from utils.config_keys import ConfigKeys
+from utils.config_keys import ConfigKeys, ConfigSections
 
 
 class WakeWordDetector:
@@ -19,7 +19,7 @@ class WakeWordDetector:
 
     def __init__(self, config, debug=False):
         self.config = config
-        self.wake_config = config[ConfigKeys.WAKE_WORD]
+        self.wake_config = config[ConfigSections.WAKE_WORD]
         self.model = None
         self.recognizer = None
         self.keywords = self.wake_config[ConfigKeys.WakeWord.KEYWORDS]
