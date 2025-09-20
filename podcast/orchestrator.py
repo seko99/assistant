@@ -39,6 +39,11 @@ class PodcastOrchestrator:
         self.participant_contexts: Dict[str, Dict[str, Any]] = {}
         self.llm_sessions: Dict[str, LLMSession] = {}
 
+        # Логируем состояние акцентизатора
+        accentizer_status = "включен" if tts_engine.use_accentizer else "отключен"
+        accentizer_loaded = "загружен" if (tts_engine.use_accentizer and tts_engine.accentizer) else "не загружен"
+        print(f"🔤 Акцентизатор: {accentizer_status}, модель: {accentizer_loaded}")
+
     def start_podcast(self, topic: str, rounds: Optional[int] = None,
                      output_dir: Optional[str] = None, no_audio: bool = False) -> PodcastSession:
         """
@@ -252,35 +257,48 @@ class PodcastOrchestrator:
             print("❌ Не найдены необходимые участники")
             return False
 
-        # Модератор задает вопрос или делает введение в раунд
+        # Модератор делает введение в раунд с направляющими вопросами
         round_intro = self._moderator_round_intro()
+        if not round_intro:
+            print("⚠️ Модератор не смог сделать введение в раунд")
+            return False
 
-        # Каждый спикер высказывается
+        # Каждый спикер высказывается по теме раунда
         for speaker in speakers:
-            question = self._moderator_question_for_speaker(speaker)
             speaker_response = self._speaker_response(speaker)
 
             if not speaker_response:
                 print(f"⚠️ Спикер {speaker.name} не ответил")
                 continue
 
-            # Короткая связка от модератора
-            if speaker != speakers[-1]:  # не для последнего спикера
-                self._moderator_transition()
-
         return True
 
     def _moderator_round_intro(self) -> Optional[str]:
-        """Введение модератора в раунд"""
+        """Введение модератора в раунд с направляющими вопросами"""
         moderator = self.participant_manager.get_moderator()
         if not moderator:
             return None
 
         round_num = self.current_session.current_round
-        intro_prompt = f"""Это раунд {round_num} из {self.current_session.max_rounds}.
+        speakers = self.participant_manager.get_speakers()
 
-Сделай краткое введение в этот раунд обсуждения темы "{self.current_session.topic}".
-Обозначь направление беседы и подготовь переход к вопросам спикерам."""
+        # Формируем информацию об участниках для направляющих вопросов
+        speakers_info = []
+        for speaker in speakers:
+            speaker_info = f"{speaker.name} ({', '.join(speaker.expertise_areas[:2])})"
+            speakers_info.append(speaker_info)
+
+        speakers_list = ", ".join(speakers_info)
+
+        intro_prompt = f"""Это раунд {round_num} из {self.current_session.max_rounds} по теме "{self.current_session.topic}".
+
+Сделай введение в раунд, которое включает:
+1. Краткое обозначение фокуса этого раунда
+2. Общие направляющие вопросы или темы для обсуждения всем участникам
+
+Участники: {speakers_list}
+
+Сформулируй это как единое связное вступление, после которого участники смогут высказаться по порядку."""
 
         response = self._get_participant_response(moderator.participant_id, intro_prompt)
 
@@ -295,46 +313,24 @@ class PodcastOrchestrator:
 
         return response
 
-    def _moderator_question_for_speaker(self, speaker: ParticipantProfile) -> Optional[str]:
-        """Модератор задает вопрос конкретному спикеру"""
-        moderator = self.participant_manager.get_moderator()
-        if not moderator:
-            return None
-
-        question_prompt = f"""Задай интересный вопрос {speaker.name} - {speaker.personality_description}.
-
-Учти его экспертизу: {', '.join(speaker.expertise_areas)}
-
-Вопрос должен быть конкретным и позволять раскрыть тему с его точки зрения."""
-
-        response = self._get_participant_response(moderator.participant_id, question_prompt)
-
-        if response:
-            self.current_session.add_transcript_entry(
-                moderator.participant_id,
-                moderator.name,
-                moderator.role,
-                response
-            )
-            self._synthesize_speech(moderator, response, f"question_to_{speaker.participant_id}")
-
-        return response
 
     def _speaker_response(self, speaker: ParticipantProfile) -> Optional[str]:
-        """Получает ответ от спикера"""
-        # Формируем контекст вопроса
-        last_moderator_entry = None
+        """Получает ответ от спикера на введение модератора"""
+        # Находим последнее введение модератора в этом раунде
+        last_moderator_intro = None
         for entry in reversed(self.current_session.transcript):
             if entry.role == ParticipantRole.MODERATOR:
-                last_moderator_entry = entry
+                last_moderator_intro = entry
                 break
 
-        if last_moderator_entry:
-            response_prompt = f"""Модератор спросил: "{last_moderator_entry.text}"
+        if last_moderator_intro:
+            response_prompt = f"""Модератор сделал введение в раунд: "{last_moderator_intro.text}"
 
-Ответь на этот вопрос исходя из своей экспертизы и роли в подкасте."""
+Выскажи свое мнение по затронутым вопросам и темам, исходя из своей экспертизы и роли в подкасте.
+Отвечай естественно, как участник дискуссии."""
         else:
-            response_prompt = f"""Выскажи свое мнение по теме "{self.current_session.topic}" исходя из своей экспертизы."""
+            response_prompt = f"""Выскажи свое мнение по теме "{self.current_session.topic}" исходя из своей экспертизы.
+Сосредоточься на аспектах, которые соответствуют твоей области знаний."""
 
         response = self._get_participant_response(speaker.participant_id, response_prompt)
 
@@ -349,28 +345,6 @@ class PodcastOrchestrator:
 
         return response
 
-    def _moderator_transition(self) -> Optional[str]:
-        """Короткая связка модератора между спикерами"""
-        moderator = self.participant_manager.get_moderator()
-        if not moderator:
-            return None
-
-        transition_prompt = """Сделай короткую связку - поблагодари за ответ и сделай переход к следующему участнику.
-
-Максимум 1-2 предложения."""
-
-        response = self._get_participant_response(moderator.participant_id, transition_prompt)
-
-        if response:
-            self.current_session.add_transcript_entry(
-                moderator.participant_id,
-                moderator.name,
-                moderator.role,
-                response
-            )
-            self._synthesize_speech(moderator, response, "transition")
-
-        return response
 
     def _closing_segment(self):
         """Завершение подкаста модератором"""
@@ -435,6 +409,10 @@ class PodcastOrchestrator:
         # Формируем путь для сохранения аудио
         audio_filename = f"{profile.participant_id}_{segment_name}_{int(time.time())}.wav"
         audio_path = os.path.join(self.current_session.output_directory, audio_filename)
+
+        # Логируем использование акцентизатора
+        accentizer_info = " [с ударениями]" if self.tts_engine.use_accentizer and self.tts_engine.accentizer else ""
+        print(f"🎙️ {profile.name} ({profile.voice_settings.speaker_name}){accentizer_info}: {text[:50]}{'...' if len(text) > 50 else ''}")
 
         try:
             if self.current_session.output_format == "audio":
