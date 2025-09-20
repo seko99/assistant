@@ -11,6 +11,7 @@ import torch
 from faster_whisper import WhisperModel
 
 from utils.config_keys import ConfigKeys, ConfigSections
+from utils.logger import get_logger
 
 
 class SpeechRecognizer:
@@ -20,6 +21,7 @@ class SpeechRecognizer:
         self.config = config
         self.transcription_config = config[ConfigSections.TRANSCRIPTION]
         self.whisper_model = None
+        self.logger = get_logger('speech_recognition')
 
     def initialize(self):
         """Инициализация модели FasterWhisper"""
@@ -32,7 +34,7 @@ class SpeechRecognizer:
             if device == 'auto' or compute_type == 'auto':
                 device, compute_type = self._detect_optimal_settings()
 
-            print(f"🔍 Загрузка FasterWhisper: {model_size}/{device}/{compute_type}")
+            self.logger.info(f"Загрузка FasterWhisper: {model_size}/{device}/{compute_type}")
 
             self.whisper_model = WhisperModel(
                 model_size,
@@ -40,11 +42,11 @@ class SpeechRecognizer:
                 compute_type=compute_type
             )
 
-            print(f"✅ FasterWhisper готов к работе")
+            self.logger.info("FasterWhisper готов к работе")
             return True
 
         except Exception as e:
-            print(f"❌ Ошибка инициализации FasterWhisper: {e}")
+            self.logger.error(f"Ошибка инициализации FasterWhisper: {e}")
             return False
 
     def _detect_optimal_settings(self):
@@ -106,15 +108,15 @@ class SpeechRecognizer:
                 try:
                     os.remove(temp_filename)
                 except Exception as cleanup_error:
-                    print(f"⚠️ Не удалось удалить временный файл {temp_filename}: {cleanup_error}")
+                    self.logger.warning(f"Не удалось удалить временный файл {temp_filename}: {cleanup_error}")
 
             if text.strip():
-                print(f"📄 Распознано: {text} (время: {transcription_time:.3f}s)")
+                self.logger.info(f"Распознано: {text} (время: {transcription_time:.3f}s)")
 
             return text
 
         except Exception as e:
-            print(f"❌ Ошибка транскрипции: {e}")
+            self.logger.error(f"Ошибка транскрипции: {e}")
             # Пытаемся очистить временный файл в случае ошибки
             if temp_file and os.path.exists(temp_file.name):
                 try:
