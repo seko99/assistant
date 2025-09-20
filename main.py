@@ -29,8 +29,9 @@ from core.speech_recognition import SpeechRecognizer
 from core.text_to_speech import TextToSpeech
 from core.wake_word import WakeWordDetector
 from utils.config import load_config
-from utils.config_keys import ConfigKeys
+from utils.config_keys import ConfigKeys, ConfigSections
 from utils.enums import AssistantState
+from utils.logger import setup_logging_from_config
 
 
 class SpeechAssistant:
@@ -53,22 +54,26 @@ class SpeechAssistant:
         # Состояние
         self.state = AssistantState.LISTENING
         self.should_stop = threading.Event()
+        self.stopping = threading.Event()  # Атомарный флаг для предотвращения гонок
 
         # Аудио настройки
-        self.sample_rate = self.config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.SAMPLE_RATE]
-        self.chunk_size = self.config[ConfigKeys.WAKE_WORD][ConfigKeys.WakeWord.CHUNK_SIZE]
+        self.sample_rate = self.config[ConfigSections.WAKE_WORD][ConfigKeys.WakeWord.SAMPLE_RATE]
+        self.chunk_size = self.config[ConfigSections.WAKE_WORD][ConfigKeys.WakeWord.CHUNK_SIZE]
 
         # Буферы для записи
         self.recording_buffer = []
         self.recording_lock = threading.Lock()
-        self.max_recording_duration = self.config[ConfigKeys.ASSISTANT][ConfigKeys.TTS.MAX_RECORDING_DURATION]
+        self.max_recording_duration = self.config[ConfigSections.ASSISTANT][ConfigKeys.TTS.MAX_RECORDING_DURATION]
         self.recording_start_time = None
         self.recording_timer = None
         self.stop_reason = None  # для отслеживания причины остановки записи
 
+        # Настраиваем логирование
+        self.logger = setup_logging_from_config(self.config)
+
     def initialize(self):
         """Инициализация всех компонентов"""
-        print("🚀 Инициализация компонентов ассистента...")
+        self.logger.info("Инициализация компонентов ассистента...")
 
         if not self.wake_detector.initialize():
             return False
@@ -82,23 +87,23 @@ class SpeechAssistant:
         if not self.llm_engine.initialize():
             return False
 
-        print("✅ Все компоненты инициализированы")
+        self.logger.info("Все компоненты инициализированы")
         return True
 
     def audio_callback(self, indata, frames, time_info, status):
         """Колбэк для обработки аудио потока"""
         if status:
-            print(f"⚠️ Ошибка аудио потока: {status}")
+            self.logger.warning(f"Ошибка аудио потока: {status}")
             return
 
         # DEBUG: проверяем, что колбэк вызывается
         if self.debug and hasattr(self, '_callback_count'):
             self._callback_count += 1
             if self._callback_count % 100 == 0:  # каждые 100 вызовов
-                print(f"🔍 DEBUG: audio_callback вызван {self._callback_count} раз")
+                self.logger.debug(f"audio_callback вызван {self._callback_count} раз")
         elif self.debug:
             self._callback_count = 1
-            print("🔍 DEBUG: audio_callback начал работу")
+            self.logger.debug("audio_callback начал работу")
 
         audio_chunk = indata[:, 0]  # первый канал
 
@@ -109,10 +114,10 @@ class SpeechAssistant:
 
                 if wake_detected:
                     text, detection_time, pre_trigger_audio = result
-                    print(f"🎉 Обнаружено ключевое слово: {text} (время: {detection_time:.3f}s)")
+                    self.logger.info(f"Обнаружено ключевое слово: {text} (время: {detection_time:.3f}s)")
                     self._start_recording(pre_trigger_audio)
                 elif self.debug and result:  # если есть любой текст
-                    print(f"🔍 DEBUG: Vosk вернул текст: '{result}', wake_detected={wake_detected}")
+                    self.logger.debug(f"Vosk вернул текст: '{result}', wake_detected={wake_detected}")
 
             elif self.state == AssistantState.RECORDING:
                 # Записываем аудио для распознавания
@@ -126,13 +131,15 @@ class SpeechAssistant:
                     if self.pause_detector.should_stop_recording(audio_chunk, duration):
                         self.stop_reason = "pause"
                         if self.debug:
-                            print(f"🤫 Остановка по паузе (длительность: {duration:.1f}s)")
-                        self._stop_recording_and_process()
+                            self.logger.debug(f"Остановка по паузе (длительность: {duration:.1f}s)")
+                        # Вызываем без лока, чтобы избежать взаимоблокировки
+                        self._stop_recording_and_process_unsafe()
                     # Проверяем максимальное время записи
                     elif duration >= self.max_recording_duration:
                         self.stop_reason = "timeout"
-                        print(f"⏰ Достигнут лимит записи ({self.max_recording_duration}с)")
-                        self._stop_recording_and_process()
+                        self.logger.info(f"Достигнут лимит записи ({self.max_recording_duration}с)")
+                        # Вызываем без лока, чтобы избежать взаимоблокировки
+                        self._stop_recording_and_process_unsafe()
 
     def _start_recording(self, pre_trigger_audio=None):
         """Начинает запись для распознавания"""
@@ -145,10 +152,10 @@ class SpeechAssistant:
         # Если есть pre-trigger аудио, используем его как начало записи
         if pre_trigger_audio is not None and len(pre_trigger_audio) > 0:
             self.recording_buffer = list(pre_trigger_audio)
-            print(f"🔴 Начинаю запись с pre-trigger ({len(pre_trigger_audio)} сэмплов)...")
+            self.logger.info(f"Начинаю запись с pre-trigger ({len(pre_trigger_audio)} сэмплов)...")
         else:
             self.recording_buffer = []
-            print("🔴 Начинаю запись...")
+            self.logger.info("Начинаю запись...")
 
         self.recording_start_time = time.time()
 
@@ -164,39 +171,61 @@ class SpeechAssistant:
         self.recording_timer.start()
 
     def _stop_recording_and_process(self, reason=None):
-        """Останавливает запись и запускает обработку"""
+        """Останавливает запись и запускает обработку (потокобезопасно)"""
+        with self.recording_lock:
+            self._stop_recording_and_process_unsafe(reason)
+
+    def _stop_recording_and_process_unsafe(self, reason=None):
+        """Останавливает запись без лока (для внутреннего использования)"""
+        # Проверяем атомарный флаг для предотвращения повторных вызовов
+        if self.stopping.is_set():
+            return
+
         if self.state != AssistantState.RECORDING:
             return
 
-        # Если причина не передана, используем сохраненную
-        if reason is None:
-            reason = self.stop_reason or "unknown"
+        # Устанавливаем флаг остановки
+        self.stopping.set()
 
-        self.state = AssistantState.TRANSCRIBING
-        duration = time.time() - self.recording_start_time if self.recording_start_time else 0
+        try:
+            # Отменяем таймер если он работает
+            if self.recording_timer:
+                self.recording_timer.cancel()
+                self.recording_timer = None
 
-        # Отображаем причину остановки
-        if reason == "pause":
-            print(f"⏹️ Запись остановлена по паузе ({duration:.1f}с)")
-        elif reason == "timeout":
-            print(f"⏹️ Запись остановлена по таймауту ({duration:.1f}с)")
-        else:
-            print(f"⏹️ Запись остановлена ({duration:.1f}с)")
+            # Если причина не передана, используем сохраненную
+            if reason is None:
+                reason = self.stop_reason or "unknown"
 
-        # Копируем буфер для обработки в отдельном потоке
-        audio_data = np.array(self.recording_buffer.copy(), dtype=np.float32)
-        processing_thread = threading.Thread(
-            target=self._process_recording,
-            args=(audio_data,),
-            daemon=True
-        )
-        processing_thread.start()
+            self.state = AssistantState.TRANSCRIBING
+            duration = time.time() - self.recording_start_time if self.recording_start_time else 0
+
+            # Отображаем причину остановки
+            if reason == "pause":
+                print(f"⏹️ Запись остановлена по паузе ({duration:.1f}с)")
+            elif reason == "timeout":
+                print(f"⏹️ Запись остановлена по таймауту ({duration:.1f}с)")
+            else:
+                print(f"⏹️ Запись остановлена ({duration:.1f}с)")
+
+            # Копируем буфер для обработки в отдельном потоке
+            audio_data = np.array(self.recording_buffer.copy(), dtype=np.float32)
+            processing_thread = threading.Thread(
+                target=self._process_recording,
+                args=(audio_data,),
+                daemon=True
+            )
+            processing_thread.start()
+
+        finally:
+            # Сбрасываем флаг остановки после обработки
+            self.stopping.clear()
 
     def _process_recording(self, audio_data):
         """Обрабатывает записанное аудио (распознавание + LLM + синтез)"""
         try:
             if len(audio_data) == 0:
-                print("⚠️ Пустая запись")
+                self.logger.warning("Пустая запись")
                 self._reset_to_listening()
                 return
 
@@ -235,7 +264,7 @@ class SpeechAssistant:
                 print("❌ Ошибка воспроизведения")
 
         except Exception as e:
-            print(f"❌ Ошибка обработки записи: {e}")
+            self.logger.error(f"Ошибка обработки записи: {e}")
         finally:
             self._reset_to_listening()
 

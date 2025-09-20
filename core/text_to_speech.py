@@ -5,13 +5,14 @@ Text-to-speech module using Silero TTS.
 import time
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import sounddevice as sd
 import torch
 import torchaudio
 
-from utils.config_keys import ConfigKeys
+from utils.config_keys import ConfigKeys, ConfigSections
+from utils.logger import get_logger
 
 
 class TextToSpeech:
@@ -19,44 +20,73 @@ class TextToSpeech:
 
     def __init__(self, config):
         self.config = config
-        self.assistant_config = config[ConfigKeys.ASSISTANT]
+        self.assistant_config = config[ConfigSections.ASSISTANT]
         self.model = None
         self.sample_rate = self.assistant_config[ConfigKeys.TTS.TTS_SAMPLE_RATE]
         self.speaker = self.assistant_config[ConfigKeys.TTS.TTS_SPEAKER]
         self.use_accentizer = self.assistant_config.get(ConfigKeys.TTS.USE_ACCENTIZER, False)
+        self.playback_device = self.assistant_config.get('playback_device', None)
+        self.offline_mode = False  # Флаг для офлайн режима
         self.accentizer = None
+        self.logger = get_logger('tts')
 
     def initialize(self):
-        """Инициализация модели Silero TTS"""
+        """Инициализация модели Silero TTS с graceful fallback"""
         try:
-            print("🔍 Загрузка Silero TTS...")
+            self.logger.info("Загрузка Silero TTS...")
 
-            # Загружаем модель Silero
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            self.model, example_text = torch.hub.load(
-                repo_or_dir='snakers4/silero-models',
-                model='silero_tts',
-                language='ru',
-                speaker='ru_v3'
-            )
-            self.model.to(device)
+            # Проверяем наличие локального кэша модели
+            model_loaded = False
+
+            # Пытаемся загрузить модель с таймаутом
+            try:
+                device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                self.model, example_text = torch.hub.load(
+                    repo_or_dir='snakers4/silero-models',
+                    model='silero_tts',
+                    language='ru',
+                    speaker='ru_v3',
+                    force_reload=False  # Используем кэш если есть
+                )
+                self.model.to(device)
+                model_loaded = True
+                self.logger.info("Модель Silero успешно загружена")
+
+            except Exception as model_error:
+                self.logger.warning(f"Ошибка загрузки модели Silero: {model_error}")
+                self.logger.warning("Проверьте интернет-соединение или локальный кэш")
+
+                # Пытаемся работать в офлайн режиме
+                self.offline_mode = True
+                self.logger.info("Переход в офлайн режим (только сохранение в файл)")
 
             # Инициализируем акцентизатор если нужно
-            if self.use_accentizer:
+            if self.use_accentizer and not self.offline_mode:
                 try:
                     from ruaccent import RUAccent
                     self.accentizer = RUAccent()
                     self.accentizer.load(omograph_model_size='turbo', use_dictionary=True)
-                    print("✅ RUAccent загружен")
+                    self.logger.info("RUAccent загружен")
                 except ImportError:
-                    print("⚠️ RUAccent не установлен, синтез без ударений")
+                    self.logger.warning("RUAccent не установлен, синтез без ударений")
+                    self.use_accentizer = False
+                except Exception as accent_error:
+                    self.logger.warning(f"Ошибка загрузки RUAccent: {accent_error}")
                     self.use_accentizer = False
 
-            print(f"✅ Silero TTS готов (динамик: {self.speaker})")
-            return True
+            # Проверяем доступность аудио устройств
+            if not self.offline_mode:
+                self._check_audio_device()
+
+            if model_loaded:
+                self.logger.info(f"Silero TTS готов (динамик: {self.speaker})")
+            else:
+                self.logger.warning("TTS работает в ограниченном режиме")
+
+            return True  # Возвращаем True даже в офлайн режиме
 
         except Exception as e:
-            print(f"❌ Ошибка инициализации Silero TTS: {e}")
+            self.logger.critical(f"Критическая ошибка инициализации TTS: {e}")
             return False
 
     def synthesize_and_play(self, text, voice_override: Optional[str] = None, save_path: Optional[str] = None):
@@ -68,6 +98,10 @@ class TextToSpeech:
             voice_override: Голос для использования (переопределяет настройку по умолчанию)
             save_path: Путь для сохранения аудио файла (опционально)
         """
+        if self.offline_mode:
+            self.logger.warning("Офлайн режим: синтез недоступен. Используйте synthesize_only.")
+            return False
+
         if not self.model or not text.strip():
             return False
 
@@ -90,21 +124,29 @@ class TextToSpeech:
 
             audio_np = audio.detach().cpu().numpy()
             synthesis_time = time.time() - start_time
-            print(f"🗣️ Синтезируем ({speaker_to_use}): {text} (время: {synthesis_time:.3f}s)")
+            self.logger.info(f"Синтезируем ({speaker_to_use}): {text} (время: {synthesis_time:.3f}s)")
 
             # Сохраняем в файл если указан путь
             if save_path:
                 self._save_audio_file(audio, save_path)
-                print(f"💾 Аудио сохранено: {save_path}")
+                self.logger.info(f"Аудио сохранено: {save_path}")
 
-            # Воспроизводим
-            sd.play(audio_np, self.sample_rate)
-            sd.wait()  # Ждем окончания воспроизведения
+            # Воспроизводим только если не в офлайн режиме
+            if not self.offline_mode:
+                try:
+                    device_id = self.playback_device if self.playback_device is not None else sd.default.device[1]
+                    sd.play(audio_np, self.sample_rate, device=device_id)
+                    sd.wait()  # Ждем окончания воспроизведения
+                except Exception as audio_error:
+                    self.logger.error(f"Ошибка воспроизведения аудио: {audio_error}")
+                    return False
+            else:
+                self.logger.info("Офлайн режим: воспроизведение пропущено")
 
             return True
 
         except Exception as e:
-            print(f"❌ Ошибка синтеза речи: {e}")
+            self.logger.error(f"Ошибка синтеза речи: {e}")
             return False
 
     def synthesize_only(self, text, voice_override: Optional[str] = None, save_path: Optional[str] = None):
@@ -145,14 +187,36 @@ class TextToSpeech:
             # Сохраняем в файл
             if save_path:
                 self._save_audio_file(audio, save_path)
-                print(f"💾 Аудио сохранено: {save_path}")
+                self.logger.info(f"Аудио сохранено: {save_path}")
                 return save_path
 
             return None
 
         except Exception as e:
-            print(f"❌ Ошибка синтеза речи: {e}")
+            self.logger.error(f"Ошибка синтеза речи: {e}")
             return None
+
+    def _check_audio_device(self):
+        """Проверяет доступность аудио устройств"""
+        try:
+            if self.playback_device is not None:
+                # Проверяем указанное устройство
+                devices = sd.query_devices()
+                if self.playback_device >= len(devices):
+                    print(f"⚠️ Устройство {self.playback_device} не найдено, используется по умолчанию")
+                    self.playback_device = None
+                else:
+                    device_info = devices[self.playback_device]
+                    print(f"🔊 Аудио устройство: {device_info['name']}")
+            else:
+                # Используем устройство по умолчанию
+                default_device = sd.default.device[1]
+                device_info = sd.query_devices(default_device)
+                print(f"🔊 Аудио устройство по умолчанию: {device_info['name']}")
+
+        except Exception as e:
+            print(f"⚠️ Ошибка проверки аудио устройств: {e}")
+            self.playback_device = None
 
     def _save_audio_file(self, audio_tensor, file_path: str):
         """Сохраняет аудио тензор в файл"""

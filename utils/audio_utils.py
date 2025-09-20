@@ -28,4 +28,6 @@ def convert_float32_to_int16(audio_data):
     Returns:
         bytes: аудио данные в формате int16
     """
-    return (audio_data * 32767).astype(np.int16).tobytes()
+    # Клиппинг аудио данных в диапазон [-1.0, 1.0] перед конвертацией
+    clipped_audio = np.clip(audio_data, -1.0, 1.0)
+    return (clipped_audio * 32767).astype(np.int16).tobytes()

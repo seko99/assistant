@@ -9,13 +9,27 @@ import re
 from typing import Optional
 
 
+# Global patterns for all thinking/reasoning tags that different LLM models might use
+THINKING_PATTERNS = [
+    r'<thinking>.*?</thinking>',
+    r'<think>.*?</think>',
+    r'<reasoning>.*?</reasoning>',
+    r'<analysis>.*?</analysis>',
+    r'<internal>.*?</internal>',
+    r'<meta>.*?</meta>',
+]
+
+
 def filter_thinking_blocks(text: str, remove_empty_lines: bool = True) -> str:
     """
-    Removes <thinking>...</thinking> blocks from text.
+    Removes thinking/reasoning blocks from text.
 
-    This function filters out reasoning blocks that some LLM models include
+    This function filters out reasoning blocks that different LLM models include
     in their responses. These blocks contain internal model reasoning that
     should not be included in final output like transcripts or TTS.
+
+    Supports multiple tag formats: <thinking>, <think>, <reasoning>, <analysis>,
+    <internal>, <meta> to accommodate different LLM model conventions.
 
     Args:
         text: Input text that may contain thinking blocks
@@ -33,19 +47,18 @@ def filter_thinking_blocks(text: str, remove_empty_lines: bool = True) -> str:
         >>> filter_thinking_blocks(text)
         'This is the actual response.'
 
-        >>> text = 'Normal text <thinking>internal</thinking> more text.'
+        >>> text = 'Normal text <reasoning>internal</reasoning> more text.'
         >>> filter_thinking_blocks(text)
         'Normal text  more text.'
     """
     if not text:
         return text
 
-    # Pattern to match thinking blocks, including multiline content
-    # Uses DOTALL flag to match newlines within the blocks
-    pattern = r'<think>.*?</think>'
+    cleaned_text = text
 
-    # Remove thinking blocks
-    cleaned_text = re.sub(pattern, '', text, flags=re.DOTALL | re.IGNORECASE)
+    # Apply all thinking/reasoning patterns to ensure comprehensive filtering
+    for pattern in THINKING_PATTERNS:
+        cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.DOTALL | re.IGNORECASE)
 
     if remove_empty_lines:
         # Clean up multiple consecutive newlines
@@ -61,8 +74,9 @@ def filter_reasoning_blocks(text: str, remove_empty_lines: bool = True) -> str:
     """
     Removes various types of reasoning/meta blocks from text.
 
-    This is a more comprehensive filter that removes multiple types of
-    meta-content blocks that models might include.
+    This function is now an alias for filter_thinking_blocks() since they
+    both use the same comprehensive set of patterns. Kept for backward
+    compatibility.
 
     Args:
         text: Input text that may contain reasoning blocks
@@ -71,32 +85,8 @@ def filter_reasoning_blocks(text: str, remove_empty_lines: bool = True) -> str:
     Returns:
         Cleaned text with reasoning blocks removed
     """
-    if not text:
-        return text
-
-    # Patterns for different types of meta-content
-    patterns = [
-        r'<thinking>.*?</thinking>',
-        r'<think>.*?</think>',
-        r'<reasoning>.*?</reasoning>',
-        r'<analysis>.*?</analysis>',
-        r'<internal>.*?</internal>',
-        r'<meta>.*?</meta>',
-    ]
-
-    cleaned_text = text
-
-    for pattern in patterns:
-        cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.DOTALL | re.IGNORECASE)
-
-    if remove_empty_lines:
-        # Clean up multiple consecutive newlines
-        cleaned_text = re.sub(r'\n\s*\n\s*\n+', '\n\n', cleaned_text)
-
-        # Remove leading/trailing whitespace
-        cleaned_text = cleaned_text.strip()
-
-    return cleaned_text
+    # Use the unified filter_thinking_blocks function
+    return filter_thinking_blocks(text, remove_empty_lines)
 
 
 def clean_llm_response(text: str,
@@ -153,24 +143,34 @@ def clean_llm_response(text: str,
 
 def has_thinking_blocks(text: str) -> bool:
     """
-    Checks if text contains thinking blocks.
+    Checks if text contains thinking/reasoning blocks.
+
+    Checks for multiple tag formats: <thinking>, <think>, <reasoning>, <analysis>,
+    <internal>, <meta> to accommodate different LLM model conventions.
 
     Args:
         text: Text to check
 
     Returns:
-        True if thinking blocks are found, False otherwise
+        True if any thinking blocks are found, False otherwise
     """
     if not text:
         return False
 
-    pattern = r'<think>.*?</think>'
-    return bool(re.search(pattern, text, flags=re.DOTALL | re.IGNORECASE))
+    # Check for any of the thinking/reasoning patterns
+    for pattern in THINKING_PATTERNS:
+        if re.search(pattern, text, flags=re.DOTALL | re.IGNORECASE):
+            return True
+
+    return False
 
 
 def extract_thinking_content(text: str) -> list[str]:
     """
-    Extracts the content of thinking blocks without the tags.
+    Extracts the content of thinking/reasoning blocks without the tags.
+
+    Extracts content from multiple tag formats: <thinking>, <think>, <reasoning>,
+    <analysis>, <internal>, <meta> to accommodate different LLM model conventions.
 
     This can be useful for debugging or analysis purposes.
 
@@ -183,8 +183,15 @@ def extract_thinking_content(text: str) -> list[str]:
     if not text:
         return []
 
-    pattern = r'<think>(.*?)</think>'
-    matches = re.findall(pattern, text, flags=re.DOTALL | re.IGNORECASE)
+    all_matches = []
+
+    # Extract content from all thinking/reasoning patterns
+    for pattern in THINKING_PATTERNS:
+        # Convert pattern to capture group format
+        # e.g., r'<thinking>.*?</thinking>' -> r'<thinking>(.*?)</thinking>'
+        capture_pattern = pattern.replace('.*?', '(.*?)')
+        matches = re.findall(capture_pattern, text, flags=re.DOTALL | re.IGNORECASE)
+        all_matches.extend(matches)
 
     # Clean up the extracted content
-    return [match.strip() for match in matches]
+    return [match.strip() for match in all_matches]

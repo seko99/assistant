@@ -7,7 +7,7 @@ import time
 from typing import Optional, Dict, List
 
 from openai import OpenAI
-from utils.config_keys import ConfigKeys
+from utils.config_keys import ConfigKeys, ConfigSections
 from utils.text_filters import filter_thinking_blocks
 
 
@@ -86,7 +86,7 @@ class LLMEngine:
 
     def __init__(self, config):
         self.config = config
-        self.llm_config = config.get(ConfigKeys.LLM.LLM, {})
+        self.llm_config = config.get(ConfigSections.LLM, {})
 
         # Настройки подключения
         self.base_url = self.llm_config.get(ConfigKeys.LLM.BASE_URL, "http://127.0.0.1:1234/v1")
